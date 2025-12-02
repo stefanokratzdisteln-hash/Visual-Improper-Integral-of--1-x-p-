@@ -1,0 +1,5 @@
+{
+  "name": "Inverse Power Function Visualizer",
+  "description": "An interactive, Geogebra-style visualization of the function f(x) = 1/x^p. Users can dynamically adjust the exponent p via a draggable UI panel to observe changes in the graph's behavior, domain, and asymptotes.",
+  "requestFramePermissions": []
+}
