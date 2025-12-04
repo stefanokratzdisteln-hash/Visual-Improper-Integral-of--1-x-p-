@@ -8,7 +8,9 @@ export const generateFunctionData = (
   p: number, 
   xMin: number, 
   xMax: number, 
-  resolution: number = 200
+  resolution: number = 400,
+  integralMode: 'infinite' | 'zero' = 'infinite',
+  limitA: number = 1
 ): DataPoint[] => {
   const data: DataPoint[] = [];
   const step = (xMax - xMin) / resolution;
@@ -19,9 +21,31 @@ export const generateFunctionData = (
     // Floating point correction
     const cleanX = Math.round(x * 1000) / 1000;
 
-    // Handle the asymptote at x=0
-    if (Math.abs(cleanX) < step / 2) {
-      data.push({ x: 0, y: null, areaY: null });
+    // Handle the singularity/asymptote at x=0
+    // If p > 0, 1/x^p is undefined/infinite at 0 -> Asymptote
+    // If p <= 0, 1/x^p becomes x^(-p) (positive power) -> Defined at 0 (usually 0, or 1 if p=0)
+    if (Math.abs(cleanX) < 1e-9) { 
+      if (p > 0) {
+        // Asymptote behavior: break the line
+        data.push({ x: 0, y: null, areaY: null });
+      } else {
+        // Defined behavior for p <= 0
+        // If p=0, 1/x^0 = 1. If p < 0 (e.g. -2), 1/x^-2 = x^2, at 0 it is 0.
+        const val = (p === 0) ? 1 : 0;
+        
+        // Determine area shading at x=0
+        let areaY: number | null = null;
+        // For Type II (0 to a), we include 0 if a >= 0
+        if (integralMode === 'zero' && limitA >= 0) {
+            areaY = val;
+        }
+        // For Type I (a to inf), we include 0 only if a <= 0 (uncommon context but possible)
+        else if (integralMode === 'infinite' && limitA <= 0) {
+            areaY = val;
+        }
+
+        data.push({ x: 0, y: val, areaY });
+      }
       continue;
     }
 
@@ -29,37 +53,42 @@ export const generateFunctionData = (
     let areaY: number | null = null;
     
     try {
+       // Calculate y = 1/x^p
+       // Note: if x < 0 and p is fractional, Math.pow returns NaN, which is correct (undefined domain)
        const denominator = Math.pow(cleanX, p);
        
        if (!isNaN(denominator) && denominator !== 0) {
          y = 1 / denominator;
        }
        
-       // If y became Infinity or NaN (e.g. imaginary), set to null
+       // If y became Infinity or NaN, set to null
        if (!isFinite(y as number)) {
          y = null;
        }
 
-       // For the integral visualization from 1 to infinity (or max X)
-       // We only populate areaY if x >= 1 and y is valid
-       if (cleanX >= 1 && y !== null) {
-         areaY = y;
-       } else if (cleanX >= 1 && y === null) {
-         // Keep area null if y is null
-         areaY = null;
-       } else {
-         // Force area to 0 or null below 1 to prevent shading
-         // Using null ensures the area chart doesn't draw a line to 0
-         areaY = null;
+       // --- Area Shading Logic ---
+       // Generally we visualize the integral on positive x-axis for this problem context
+       if (cleanX > 0) {
+         if (integralMode === 'infinite') {
+           // Integral from a to Infinity
+           if (cleanX >= limitA && y !== null) {
+             areaY = y;
+           }
+         } else {
+           // Integral from 0 to a
+           if (cleanX <= limitA && y !== null) {
+             areaY = y;
+           }
+         }
        }
+       
+       // Cleanup area if calculation failed
+       if (y === null) areaY = null;
 
     } catch (e) {
       y = null;
       areaY = null;
     }
-
-    // Special case: Ensure strictly x=1 starts the area cleanly if the step skipped it slightly
-    // but resolution is high enough that this is usually handled by the loop range.
     
     data.push({ x: cleanX, y, areaY });
   }

@@ -4,139 +4,171 @@ import { DraggablePanel } from './components/DraggablePanel';
 import { MathFormula } from './components/MathFormula';
 import { generateFunctionData } from './utils/mathUtils';
 
+type IntegralMode = 'infinite' | 'zero';
+
 const App: React.FC = () => {
-  // State for the exponent p
-  const [p, setP] = useState<number>(0.5); // Default to 0.5 to show the divergence issue
-  const [showIntegral, setShowIntegral] = useState<boolean>(false);
-  
-  // State for zoom/domain
+  // --- State ---
+  const [p, setP] = useState<number>(0.5); 
+  const [limitA, setLimitA] = useState<number>(1);
+  const [mode, setMode] = useState<IntegralMode>('infinite');
+  const [showIntegral, setShowIntegral] = useState<boolean>(true); // Default to on for this view
   const [zoom, setZoom] = useState<number>(10); 
 
-  // Memoize data calculation
+  // --- Calculations ---
+  
+  // Memoize graph data calculation
   const data = useMemo(() => {
-    return generateFunctionData(p, -zoom, zoom, 400);
-  }, [p, zoom]);
+    return generateFunctionData(p, -zoom, zoom, 500, mode, limitA);
+  }, [p, zoom, mode, limitA]);
 
-  const domainX: [number, number] = [-zoom, zoom];
-  const domainY: [number, number] = [-zoom, zoom];
+  const domainX: [number, number] = [-2, 10]; // Adjusted for better view of integrals
+  const domainY: [number, number] = [-2, 10];
 
-  // Calculate Integral Value for display
-  const integralValue = useMemo(() => {
-    if (p <= 1) return "Diverges (∞)";
-    const val = 1 / (p - 1);
-    return val.toFixed(4);
-  }, [p]);
+  // Calculate Integral Value
+  const integralResult = useMemo(() => {
+    const a = limitA;
+    if (mode === 'infinite') {
+      // Integral from a to Infinity
+      // Converges if p > 1
+      if (p <= 1) return { val: "Diverges (∞)", isConvergent: false };
+      const val = Math.pow(a, 1 - p) / (p - 1);
+      return { val: val.toFixed(4), isConvergent: true };
+    } else {
+      // Integral from 0 to a
+      // Converges if p < 1 (including negative p)
+      if (p >= 1) return { val: "Diverges (∞)", isConvergent: false };
+      // Formula works for p < 1
+      const val = Math.pow(a, 1 - p) / (1 - p);
+      return { val: val.toFixed(4), isConvergent: true };
+    }
+  }, [p, limitA, mode]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-50">
       
-      {/* Background Grid/Graph Area */}
+      {/* Graph Area */}
       <div className="absolute inset-0">
         <FunctionGraph 
           data={data} 
           domainX={domainX} 
           domainY={domainY}
+          limitA={limitA}
+          mode={mode}
           showIntegral={showIntegral}
         />
       </div>
 
       {/* Floating UI Panel */}
-      <DraggablePanel initialX={40} initialY={40} title="Function Parameters">
+      <DraggablePanel initialX={40} initialY={40} title="Improper Integral">
         
-        <MathFormula p={p} />
+        {/* Mode Switcher Tabs */}
+        <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
+          <button
+            onClick={() => setMode('infinite')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              mode === 'infinite' 
+                ? 'bg-white text-geoBlue shadow-sm' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Type I: ∫ a to ∞
+          </button>
+          <button
+            onClick={() => setMode('zero')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              mode === 'zero' 
+                ? 'bg-white text-geoBlue shadow-sm' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Type II: ∫ 0 to a
+          </button>
+        </div>
+
+        <MathFormula p={p} limitA={limitA} mode={mode} />
         
         <div className="space-y-6">
-          {/* Slider Control */}
-          <div className="space-y-3">
+          
+          {/* Slider for P */}
+          <div className="space-y-2">
             <div className="flex justify-between items-center text-sm text-gray-600 font-medium">
               <label htmlFor="p-slider">Exponent (p)</label>
-              <span className="font-mono bg-blue-50 text-geoBlue px-2 py-0.5 rounded border border-blue-100">
+              <span className="font-mono bg-blue-50 text-geoBlue px-2 py-0.5 rounded border border-blue-100 min-w-[3rem] text-center">
                 {p.toFixed(2)}
               </span>
             </div>
-            
             <input
               id="p-slider"
               type="range"
               min="-2"
-              max="4"
+              max="3"
               step="0.1"
               value={p}
               onChange={(e) => setP(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-geoBlue focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-geoBlue focus:outline-none"
             />
-            
-            <div className="flex justify-between text-xs text-gray-400 font-mono">
-              <span>-2.0</span>
-              <span>1.0</span>
-              <span>4.0</span>
-            </div>
           </div>
 
-          {/* Quick Presets */}
-          <div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Quick Sets</span>
-            <div className="grid grid-cols-4 gap-2">
-              {[0.5, 1, 1.5, 2].map((val) => (
-                <button
-                  key={val}
-                  onClick={() => setP(val)}
-                  className={`px-2 py-1.5 text-xs font-medium rounded border transition-colors
-                    ${p === val 
-                      ? 'bg-geoBlue text-white border-geoBlue shadow-sm' 
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                    }`}
-                >
-                  {val}
-                </button>
-              ))}
+          {/* Slider for A */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-sm text-gray-600 font-medium">
+              <label htmlFor="a-slider">Limit (a)</label>
+              <span className="font-mono bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-200 min-w-[3rem] text-center">
+                {limitA.toFixed(1)}
+              </span>
             </div>
+            <input
+              id="a-slider"
+              type="range"
+              min="0.1"
+              max="8"
+              step="0.1"
+              value={limitA}
+              onChange={(e) => setLimitA(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-slate-500 focus:outline-none"
+            />
           </div>
 
-          <div className="border-t border-gray-100 my-4"></div>
+          <div className="border-t border-gray-100 my-2"></div>
 
-          {/* Integral Control */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Improper Integral</span>
-              <button 
-                onClick={() => setShowIntegral(!showIntegral)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${showIntegral ? 'bg-emerald-500' : 'bg-gray-200'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showIntegral ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
+          {/* Result Display */}
+          <div className={`rounded-lg p-3 border transition-colors ${
+              integralResult.isConvergent 
+              ? 'bg-emerald-50 border-emerald-100' 
+              : 'bg-orange-50 border-orange-100'
+            }`}>
+            <div className="flex justify-between items-center mb-1">
+               <span className={`font-serif italic text-sm ${integralResult.isConvergent ? 'text-emerald-800' : 'text-orange-800'}`}>
+                 Area = 
+               </span>
+               <span className={`font-bold font-mono ${integralResult.isConvergent ? 'text-emerald-700' : 'text-orange-700'}`}>
+                 {integralResult.val}
+               </span>
             </div>
             
-            {showIntegral && (
-              <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100 text-sm">
-                <div className="flex justify-between items-center mb-1">
-                   <span className="font-serif italic text-emerald-800">∫<sub>1</sub><sup>∞</sup> f(x) dx = </span>
-                   <span className="font-bold font-mono text-emerald-700">{integralValue}</span>
-                </div>
-                {p <= 1 && p > 0 && (
-                   <p className="text-xs text-emerald-600 mt-2">
-                     For 0 &lt; p &le; 1, the "tail" of the curve is too thick, making the area infinite.
-                   </p>
-                )}
-                {p > 1 && (
-                   <p className="text-xs text-emerald-600 mt-2">
-                     Converges to 1/(p-1).
-                   </p>
-                )}
-                 {p <= 0 && (
-                   <p className="text-xs text-emerald-600 mt-2">
-                     Diverges rapidly as f(x) does not approach 0.
-                   </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Drag p to see how the exponent affects convergence. Notice the transition at p=1.
+            <p className={`text-xs mt-2 ${integralResult.isConvergent ? 'text-emerald-600' : 'text-orange-600'}`}>
+              {mode === 'infinite' 
+                ? (integralResult.isConvergent 
+                    ? "Converges because p > 1." 
+                    : "Diverges because p ≤ 1 (Tail is too thick).")
+                : (integralResult.isConvergent 
+                    ? "Converges because p < 1." 
+                    : "Diverges because p ≥ 1 (Blows up too fast at 0).")
+              }
             </p>
           </div>
+          
+          <div className="flex items-center space-x-2 pt-2">
+             <input 
+               type="checkbox" 
+               id="show-area" 
+               checked={showIntegral} 
+               onChange={(e) => setShowIntegral(e.target.checked)}
+               className="rounded text-geoBlue focus:ring-geoBlue"
+             />
+             <label htmlFor="show-area" className="text-xs text-gray-500 select-none">Show shading region</label>
+          </div>
+
         </div>
 
       </DraggablePanel>

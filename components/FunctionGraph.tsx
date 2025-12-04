@@ -16,15 +16,17 @@ interface FunctionGraphProps {
   data: DataPoint[];
   domainX: [number, number];
   domainY: [number, number];
+  limitA: number;
+  mode: 'infinite' | 'zero';
   showIntegral: boolean;
 }
 
-export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, domainY, showIntegral }) => {
+export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, domainY, limitA, mode, showIntegral }) => {
   
-  // Custom Tick for Axes to look more like scientific software
+  // Custom Tick for Axes
   const CustomTick = (props: any) => {
     const { x, y, payload, vertical } = props;
-    if (payload.value === 0) return null; // Don't show 0 on axis to avoid overlap with origin
+    if (payload.value === 0) return null;
 
     return (
       <text 
@@ -42,6 +44,10 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
     );
   };
 
+  // Determine shading color based on standard "good/bad" logic implicitly handled in parent, 
+  // but here we just use the GeoGebra-ish style.
+  const areaColor = "#10b981"; // Emerald green
+
   return (
     <div className="w-full h-full select-none cursor-crosshair bg-white">
       <ResponsiveContainer width="100%" height="100%">
@@ -51,13 +57,22 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           
-          {/* Main Axes Lines (Visual only, to emphasize x=0 and y=0) */}
           <ReferenceLine x={0} stroke="#334155" strokeWidth={2} />
           <ReferenceLine y={0} stroke="#334155" strokeWidth={2} />
 
-          {/* Integral Start Line */}
+          {/* Limit A Line */}
           {showIntegral && (
-            <ReferenceLine x={1} stroke="#10b981" strokeDasharray="3 3" label={{ value: "x=1", fill: "#10b981", fontSize: 12, position: 'insideTopLeft' }} />
+            <ReferenceLine 
+              x={limitA} 
+              stroke="#64748b" 
+              strokeDasharray="5 5" 
+              label={{ 
+                value: `a=${limitA}`, 
+                fill: "#64748b", 
+                fontSize: 12, 
+                position: 'insideTopLeft' 
+              }} 
+            />
           )}
 
           <XAxis 
@@ -66,7 +81,7 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
             domain={domainX} 
             allowDataOverflow={true}
             tickCount={11}
-            stroke="transparent" // Hide the default bounding box line
+            stroke="transparent"
             tick={(props) => <CustomTick {...props} vertical={false} />}
           />
           <YAxis 
@@ -82,15 +97,13 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
             cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
             content={({ active, payload, label }) => {
               if (active && payload && payload.length) {
-                // Find the y payload
                 const yPayload = payload.find(p => p.dataKey === 'y');
                 const val = yPayload?.value;
-                
                 if (val === null || val === undefined) return null;
                 return (
                   <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg opacity-90 font-mono">
                     <div>x: {Number(label).toFixed(3)}</div>
-                    <div>y: {Number(val).toFixed(3)}</div>
+                    <div>f(x): {Number(val).toFixed(3)}</div>
                   </div>
                 );
               }
@@ -98,13 +111,12 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
             }}
           />
 
-          {/* Area under curve for integral visualization */}
           {showIntegral && (
             <Area
               type="monotone"
               dataKey="areaY"
-              fill="#10b981" // Greenish
-              fillOpacity={0.2}
+              fill={areaColor}
+              fillOpacity={0.3}
               stroke="transparent"
               isAnimationActive={false}
               connectNulls={false}
@@ -112,13 +124,13 @@ export const FunctionGraph: React.FC<FunctionGraphProps> = ({ data, domainX, dom
           )}
 
           <Line
-            type="monotone" // smooth curve
+            type="monotone"
             dataKey="y"
-            stroke="#615efc" // GeoBlue
+            stroke="#615efc"
             strokeWidth={3}
             dot={false}
-            isAnimationActive={false} // Performance for slider
-            connectNulls={false} // Crucial: Don't connect lines across the asymptote
+            isAnimationActive={false}
+            connectNulls={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
